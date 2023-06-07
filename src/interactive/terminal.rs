@@ -1,7 +1,6 @@
 use std::io::{Write};
 use console::{Term, Key};
-use crate::config::behavior;
-
+use crate::config::{behavior, completion};
 
 pub fn main_loop(mut term: Term) {
     loop {
@@ -9,8 +8,11 @@ pub fn main_loop(mut term: Term) {
         term.flush().unwrap();
 
         let arguments = inline_loop(&mut term);
+        let command = completion::Command::from(arguments);
 
-        println!("{:?}", arguments);
+        println!();
+        println!("command: {}", command.get_command());
+        println!("args: {:?}", command.get_arguments());
     }
 }
 
@@ -66,24 +68,32 @@ fn inline_loop(term: &mut Term) -> Vec<String> {
 fn parse_arguments(buffer: String) -> Vec<String> {
     let mut arguments: Vec<String> = Vec::new();
     let mut trapper: char = ' ';
-    let mut current= String::new();
+    let mut  escaped = false;
+    let mut current = String::new();
+
     for entry in buffer.chars() {
-        if behavior::TRAP_CHARS.contains(entry) {
-            if trapper == entry {
-                // escape
-                trapper = ' ';
+        if !escaped {
+            if behavior::TRAP_CHARS.contains(entry) {
+                if trapper == entry {
+                    // escape
+                    trapper = ' ';
+                    continue;
+                } else if trapper == ' ' {
+                    trapper = entry;
+                    continue;
+                }
+            } else if entry == behavior::ESCAPE_CHAR {
+                escaped = true;
                 continue;
-            } else if trapper == ' ' {
-                trapper = entry;
+            } else if entry == ' ' && trapper == ' ' && !current.is_empty() {
+                arguments.push(current);
+                current = String::new();
                 continue;
             }
-        } else if entry == ' ' && trapper == ' ' && !current.is_empty() {
-            arguments.push(current);
-            current = String::new();
-            continue;
         }
 
         current.push(entry);
+        escaped = false;
     }
 
     arguments.push(current);
