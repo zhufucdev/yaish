@@ -8,18 +8,17 @@ pub fn main_loop(mut term: Term) {
         term.write("🤔 ".as_bytes()).unwrap();
         term.flush().unwrap();
 
-        let mut arguments: Vec<String> = Vec::new();
-        inline_loop(&mut term, &mut arguments);
+        let arguments = inline_loop(&mut term);
 
         println!("{:?}", arguments);
     }
 }
 
-fn inline_loop(term: &mut Term, arguments: &mut Vec<String>) {
+fn inline_loop(term: &mut Term) -> Vec<String> {
+    let mut buffer = String::new();
+
     loop {
-        let mut current = String::new();
-        let mut execute = false;
-        let mut trapper: char = ' ';
+        let execute: bool;
 
         loop {
             match term.read_key() {
@@ -31,32 +30,17 @@ fn inline_loop(term: &mut Term, arguments: &mut Vec<String>) {
                             term.write(&buf).unwrap();
                             term.flush().unwrap();
 
-                            if c == ' ' && trapper == ' ' && !current.is_empty() {
-                                arguments.push(current);
-                                break;
-                            } else if behavior::TRAP_CHARS.contains(c) {
-                                if c == trapper {
-                                    // escape
-                                    trapper = ' ';
-                                } else if trapper == ' ' {
-                                    trapper = c;
-                                } else {
-                                    current.push(c);
-                                }
-                            } else {
-                                current.push(c);
-                            }
+                            buffer.push(c);
                         }
 
                         Key::Enter => {
-                            arguments.push(current);
                             execute = true;
                             break;
                         }
 
                         Key::Backspace => {
                             term.clear_chars(1).unwrap();
-                            current.pop();
+                            buffer.pop();
                         }
 
                         _ => {}
@@ -66,7 +50,7 @@ fn inline_loop(term: &mut Term, arguments: &mut Vec<String>) {
                 Err(_) => {
                     println!();
                     println!("Fuck that. Everything goes wrong. I am not interactive anymore.");
-                    return;
+                    return Vec::new();
                 }
             }
         }
@@ -75,4 +59,34 @@ fn inline_loop(term: &mut Term, arguments: &mut Vec<String>) {
             break;
         }
     }
+
+    return parse_arguments(buffer);
+}
+
+fn parse_arguments(buffer: String) -> Vec<String> {
+    let mut arguments: Vec<String> = Vec::new();
+    let mut trapper: char = ' ';
+    let mut current= String::new();
+    for entry in buffer.chars() {
+        if behavior::TRAP_CHARS.contains(entry) {
+            if trapper == entry {
+                // escape
+                trapper = ' ';
+                continue;
+            } else if trapper == ' ' {
+                trapper = entry;
+                continue;
+            }
+        } else if entry == ' ' && trapper == ' ' && !current.is_empty() {
+            arguments.push(current);
+            current = String::new();
+            continue;
+        }
+
+        current.push(entry);
+    }
+
+    arguments.push(current);
+
+    return arguments;
 }
