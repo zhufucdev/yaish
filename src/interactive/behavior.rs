@@ -97,19 +97,6 @@ impl CliBehavior {
 }
 
 impl InteractiveBehavior for CliBehavior {
-    fn should_execute(&self) -> bool {
-        return self.execute;
-    }
-
-    fn execute(&self) {
-        let args = self.parse_arguments();
-        let command = Command::from(args);
-
-        println!();
-        println!("Command: {}", command.get_command());
-        println!("Args: {:?}", command.get_arguments());
-    }
-
     fn on_key_pressed(&mut self, key: Key, term: &mut Term) {
         match key {
             Key::Backspace => {
@@ -130,5 +117,18 @@ impl InteractiveBehavior for CliBehavior {
         term.flush().unwrap();
 
         self.buffer.push(c);
+    }
+
+    fn should_execute(&self) -> bool {
+        return self.execute;
+    }
+
+    fn execute(&self) {
+        let args = self.parse_arguments();
+        let command = Command::from(args);
+
+        println!();
+        println!("Command: {}", command.get_command());
+        println!("Args: {:?}", command.get_arguments());
     }
 }
