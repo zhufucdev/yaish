@@ -1,4 +1,5 @@
 use console::Term;
+use crate::interactive::display::Display;
 
 mod config;
 mod interactive;
@@ -10,5 +11,6 @@ fn main() {
         println!("Liar! This is not a terminal!")
     }
 
-    interactive::terminal::main_loop(term);
+    let mut display = Display::from(term);
+    display.main_loop();
 }

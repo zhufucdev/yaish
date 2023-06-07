@@ -1,2 +1,2 @@
-pub mod terminal;
 pub mod display;
+mod behavior;

@@ -1,6 +1,7 @@
+use console::Style;
+
 pub struct Command {
     commands: Vec<String>,
-
     command: String,
     arguments: Vec<String>,
 }
@@ -29,4 +30,13 @@ impl Command {
     pub fn get_arguments(&self) -> Vec<String> {
         return self.arguments.clone();
     }
+}
+
+pub struct Suggestion {
+    pub tooltip: String,
+    pub style: Style
+}
+
+pub struct Completion {
+    pub tooltip: String
 }
