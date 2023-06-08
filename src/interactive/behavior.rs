@@ -156,12 +156,12 @@ impl InteractiveBehavior for CliBehavior {
 
             _ => {
                 if self.is_winding {
-                    self.is_winding = false;
-                    self.history.reset();
-
                     self.buffer = self.history.present().or(Some(&Command::empty())).unwrap().to_string();
                     CliBehavior::swipe(self.buffer.as_str(), out);
                     self.cursor = 0;
+
+                    self.is_winding = false;
+                    self.history.reset();
                 }
             }
         }
