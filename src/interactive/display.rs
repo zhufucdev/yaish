@@ -3,6 +3,7 @@ use std::process::exit;
 use std::time::Duration;
 use crossterm::event::{Event, KeyCode, poll, read};
 use crossterm::terminal;
+use crate::config::behavior;
 use crate::config::completion::{Completion, Suggestion};
 use crate::interactive::behavior::{CliBehavior, Focus, InteractiveBehavior};
 
@@ -30,9 +31,6 @@ impl Display {
     fn show_completion(&mut self, completion: Completion) {}
 
     fn inline_loop(&mut self) {
-        self.behavior = Box::new(CliBehavior::new());
-        self.focus = Focus::CLI;
-
         loop {
             match read() {
                 Ok(event) => {
@@ -81,11 +79,23 @@ impl Display {
             println!();
             self.behavior.execute();
             println!();
+            self.behavior.reset();
         }
     }
 
     pub fn quit() {
         terminal::disable_raw_mode().unwrap();
         exit(0);
+    }
+}
+
+pub trait Beep {
+    fn beep(&mut self);
+}
+
+impl Beep for Stdout {
+    fn beep(&mut self) {
+        self.write(behavior::BEEP_STR.as_bytes()).ok();
+        self.flush().unwrap();
     }
 }

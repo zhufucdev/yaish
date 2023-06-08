@@ -1,3 +1,4 @@
+use std::ops::Add;
 use crossterm::style::Stylize;
 
 pub struct Command {
@@ -19,6 +20,12 @@ impl From<Vec<String>> for Command {
             command: String::from(owned.get(0).unwrap()),
             arguments: owned[1..].to_owned(),
         };
+    }
+}
+
+impl ToString for Command {
+    fn to_string(&self) -> String {
+        self.commands.join(" ")
     }
 }
 

@@ -5,7 +5,8 @@ use crossterm::ExecutableCommand;
 use crossterm::terminal::{Clear, ClearType};
 use crate::config::behavior;
 use crate::config::completion::{Command, Completion, Suggestion};
-use crate::interactive::display::Display;
+use crate::config::history::History;
+use crate::interactive::display::{Beep, Display};
 
 pub enum Focus {
     CLI,
@@ -16,7 +17,8 @@ pub trait InteractiveBehavior {
     fn on_key_pressed(&mut self, ev: KeyEvent, out: &mut Stdout);
     fn on_char_received(&mut self, c: char, ev: KeyEvent, out: &mut Stdout);
     fn should_execute(&self) -> bool;
-    fn execute(&self);
+    fn execute(&mut self);
+    fn reset(&mut self);
 }
 
 pub struct AutoCompletionBehavior {
@@ -46,13 +48,16 @@ impl InteractiveBehavior for AutoCompletionBehavior {
     fn should_execute(&self) -> bool {
         return false;
     }
-    fn execute(&self) {}
+    fn execute(&mut self) {}
+    fn reset(&mut self) {}
 }
 
 pub struct CliBehavior {
     buffer: String,
     execute: bool,
     cursor: u16,
+    history: History,
+    is_winding: bool
 }
 
 impl CliBehavior {
@@ -61,6 +66,8 @@ impl CliBehavior {
             buffer: String::new(),
             execute: false,
             cursor: 0,
+            history: History::new(),
+            is_winding: false
         };
     }
 
@@ -103,11 +110,63 @@ impl CliBehavior {
 
 impl InteractiveBehavior for CliBehavior {
     fn on_key_pressed(&mut self, ev: KeyEvent, out: &mut Stdout) {
+        // handle history winding
+        match ev.code {
+            KeyCode::Up => {
+                match self.history.wind() {
+                    Some(command) => {
+                        self.is_winding = true;
+                        out.queue(cursor::MoveToColumn(3)).ok();
+                        out.queue(Clear(ClearType::FromCursorDown)).ok();
+                        out.write(command.to_string().as_bytes()).ok();
+                        out.flush().unwrap();
+                    }
+
+                    None => {
+                        out.beep();
+                    }
+                }
+            }
+
+            KeyCode::Down => {
+                if self.is_winding {
+                    fn next(str: &str, out: &mut Stdout) {
+                        out.queue(cursor::MoveToColumn(3)).ok();
+                        out.queue(Clear(ClearType::FromCursorDown)).ok();
+                        out.write(str.as_bytes()).ok();
+                        out.flush().unwrap();
+                    }
+
+                    match self.history.unwind() {
+                        Some(command) => {
+                            next(command.to_string().as_str(), out);
+                        }
+
+                        None => {
+                            self.is_winding = false;
+                            next(self.buffer.as_str(), out);
+                        }
+                    }
+
+                } else {
+                    out.beep()
+                }
+            }
+
+            _ => {
+                if self.is_winding {
+                    self.is_winding = false;
+                    self.buffer = self.history.present().unwrap().to_string();
+                    self.cursor = 0;
+                }
+            }
+        }
+
         match ev.code {
             KeyCode::Backspace => {
                 out.queue(cursor::MoveLeft(1)).unwrap();
                 out.queue(Clear(ClearType::FromCursorDown)).unwrap();
-                out.flush().unwrap();
+                out.flush().ok();
 
                 self.buffer.remove(self.buffer.len() - self.cursor as usize - 1);
                 out.write_all(
@@ -140,7 +199,6 @@ impl InteractiveBehavior for CliBehavior {
             Display::quit();
         }
 
-
         out.execute(Clear(ClearType::FromCursorDown)).unwrap();
         self.buffer.insert(self.buffer.len() - self.cursor as usize, c);
 
@@ -159,11 +217,19 @@ impl InteractiveBehavior for CliBehavior {
         return self.execute;
     }
 
-    fn execute(&self) {
+    fn execute(&mut self) {
         let args = self.parse_arguments();
         let command = Command::from(args);
 
         println!("Command: {}", command.get_command());
         println!("Args: {:?}", command.get_arguments());
+
+        self.history.push(command);
+    }
+
+    fn reset(&mut self) {
+        self.execute = false;
+        self.is_winding = false;
+        self.buffer = String::new();
     }
 }
