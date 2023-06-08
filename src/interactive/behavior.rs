@@ -2,6 +2,7 @@ use std::io::{Stdout, Write};
 use crossterm::{cursor, QueueableCommand};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use crossterm::ExecutableCommand;
+use crossterm::style::Stylize;
 use crossterm::terminal::{Clear, ClearType};
 use crate::config::behavior;
 use crate::config::completion::{Command, Completion, Suggestion};
@@ -106,6 +107,13 @@ impl CliBehavior {
 
         return arguments;
     }
+
+    fn swipe(str: &str, out: &mut Stdout) {
+        out.queue(cursor::MoveToColumn(behavior::STARTER.chars().count() as u16 + 1)).ok();
+        out.queue(Clear(ClearType::FromCursorDown)).ok();
+        out.write(str.as_bytes()).ok();
+        out.flush().unwrap();
+    }
 }
 
 impl InteractiveBehavior for CliBehavior {
@@ -116,13 +124,14 @@ impl InteractiveBehavior for CliBehavior {
                 match self.history.wind() {
                     Some(command) => {
                         self.is_winding = true;
-                        out.queue(cursor::MoveToColumn(behavior::STARTER.chars().count() as u16 + 1)).ok();
-                        out.queue(Clear(ClearType::FromCursorDown)).ok();
-                        out.write(command.to_string().as_bytes()).ok();
-                        out.flush().unwrap();
+                        CliBehavior::swipe(command.to_string().as_str(), out);
                     }
 
                     None => {
+                        if !self.history.is_empty() {
+                            CliBehavior::swipe(self.history.unwind().unwrap().to_string().negative().to_string().as_str(), out);
+                            self.history.wind();
+                        }
                         out.beep();
                     }
                 }
@@ -130,21 +139,14 @@ impl InteractiveBehavior for CliBehavior {
 
             KeyCode::Down => {
                 if self.is_winding {
-                    fn next(str: &str, out: &mut Stdout) {
-                        out.queue(cursor::MoveToColumn(behavior::STARTER.chars().count() as u16 + 1)).ok();
-                        out.queue(Clear(ClearType::FromCursorDown)).ok();
-                        out.write(str.as_bytes()).ok();
-                        out.flush().unwrap();
-                    }
-
                     match self.history.unwind() {
                         Some(command) => {
-                            next(command.to_string().as_str(), out);
+                            CliBehavior::swipe(command.to_string().as_str(), out);
                         }
 
                         None => {
                             self.is_winding = false;
-                            next(self.buffer.as_str(), out);
+                            CliBehavior::swipe(self.buffer.as_str(), out);
                         }
                     }
                 } else {
@@ -155,7 +157,8 @@ impl InteractiveBehavior for CliBehavior {
             _ => {
                 if self.is_winding {
                     self.is_winding = false;
-                    self.buffer = self.history.present().unwrap().to_string();
+                    self.buffer = self.history.present().or(Some(&Command::empty())).unwrap().to_string();
+                    CliBehavior::swipe(self.buffer.as_str(), out);
                     self.cursor = 0;
                 }
             }
@@ -204,6 +207,23 @@ impl InteractiveBehavior for CliBehavior {
             Display::quit();
         }
 
+        // make sure currently it's not winding
+        if self.is_winding {
+            match self.history.present() {
+                Some(command) => {
+                    self.buffer = command.to_string();
+                    CliBehavior::swipe(self.buffer.as_str(), out);
+                }
+
+                None => {
+                    // clear because, you know, nothing useful has been found
+                    self.buffer = String::new();
+                    CliBehavior::swipe("", out);
+                }
+            }
+            self.is_winding = false;
+        }
+
         out.execute(Clear(ClearType::FromCursorDown)).unwrap();
         self.buffer.insert(self.buffer.len() - self.cursor as usize, c);
 
@@ -229,7 +249,9 @@ impl InteractiveBehavior for CliBehavior {
         println!("Command: {}", command.get_command());
         println!("Args: {:?}", command.get_arguments());
 
-        self.history.push(command);
+        if !command.is_empty() {
+            self.history.push(command);
+        }
     }
 
     fn reset(&mut self) {

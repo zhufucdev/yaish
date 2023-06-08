@@ -30,12 +30,24 @@ impl ToString for Command {
 }
 
 impl Command {
+    pub fn empty() -> Command {
+        Command {
+            commands: vec![],
+            command: String::new(),
+            arguments: vec![]
+        }
+    }
+
     pub fn get_command(&self) -> &str {
-        return self.command.as_str();
+        self.command.as_str()
     }
 
     pub fn get_arguments(&self) -> Vec<String> {
-        return self.arguments.clone();
+        self.arguments.clone()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.command.is_empty()
     }
 }
 

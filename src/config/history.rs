@@ -38,4 +38,8 @@ impl History {
     pub(crate) fn present(&self) -> Option<&Command> {
         self.commands.get(self.index as usize)
     }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.commands.is_empty()
+    }
 }
