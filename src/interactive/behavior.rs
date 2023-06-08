@@ -49,6 +49,7 @@ impl InteractiveBehavior for AutoCompletionBehavior {
 pub struct CliBehavior {
     buffer: String,
     execute: bool,
+    cursor: usize,
 }
 
 impl CliBehavior {
@@ -56,6 +57,7 @@ impl CliBehavior {
         return CliBehavior {
             buffer: String::new(),
             execute: false,
+            cursor: 0,
         };
     }
 
@@ -101,7 +103,20 @@ impl InteractiveBehavior for CliBehavior {
         match key {
             Key::Backspace => {
                 term.clear_chars(1).unwrap();
-                self.buffer.pop();
+                self.buffer.remove(self.buffer.len() - self.cursor - 1);
+                term.write_all(
+                    self.buffer.get(self.buffer.len() - self.cursor..self.buffer.len())
+                        .unwrap().as_bytes()
+                ).unwrap();
+                term.move_cursor_left(self.cursor).unwrap();
+            }
+            Key::ArrowLeft => {
+                term.move_cursor_left(1).unwrap();
+                self.cursor += 1;
+            }
+            Key::ArrowRight => {
+                term.move_cursor_right(1).unwrap();
+                self.cursor = (self.cursor - 1).max(0);
             }
             Key::Enter => {
                 self.execute = true;
@@ -111,12 +126,15 @@ impl InteractiveBehavior for CliBehavior {
     }
 
     fn on_char_received(&mut self, c: char, term: &mut Term) {
-        let mut buf = [0; 8];
-        c.encode_utf8(&mut buf);
-        term.write(&buf).unwrap();
+        term.clear_chars(0).unwrap();
+        self.buffer.insert(self.buffer.len() - self.cursor, c);
+
+        term.write(
+            self.buffer.get(self.buffer.len() - 1 - self.cursor..self.buffer.len()).unwrap().as_bytes()
+        ).unwrap();
         term.flush().unwrap();
 
-        self.buffer.push(c);
+        term.move_cursor_left(self.cursor).unwrap();
     }
 
     fn should_execute(&self) -> bool {
