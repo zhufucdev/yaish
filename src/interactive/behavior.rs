@@ -57,7 +57,7 @@ pub struct CliBehavior {
     execute: bool,
     cursor: u16,
     history: History,
-    is_winding: bool
+    is_winding: bool,
 }
 
 impl CliBehavior {
@@ -67,7 +67,7 @@ impl CliBehavior {
             execute: false,
             cursor: 0,
             history: History::new(),
-            is_winding: false
+            is_winding: false,
         };
     }
 
@@ -116,7 +116,7 @@ impl InteractiveBehavior for CliBehavior {
                 match self.history.wind() {
                     Some(command) => {
                         self.is_winding = true;
-                        out.queue(cursor::MoveToColumn(3)).ok();
+                        out.queue(cursor::MoveToColumn(behavior::STARTER.chars().count() as u16 + 1)).ok();
                         out.queue(Clear(ClearType::FromCursorDown)).ok();
                         out.write(command.to_string().as_bytes()).ok();
                         out.flush().unwrap();
@@ -131,7 +131,7 @@ impl InteractiveBehavior for CliBehavior {
             KeyCode::Down => {
                 if self.is_winding {
                     fn next(str: &str, out: &mut Stdout) {
-                        out.queue(cursor::MoveToColumn(3)).ok();
+                        out.queue(cursor::MoveToColumn(behavior::STARTER.chars().count() as u16 + 1)).ok();
                         out.queue(Clear(ClearType::FromCursorDown)).ok();
                         out.write(str.as_bytes()).ok();
                         out.flush().unwrap();
@@ -147,7 +147,6 @@ impl InteractiveBehavior for CliBehavior {
                             next(self.buffer.as_str(), out);
                         }
                     }
-
                 } else {
                     out.beep()
                 }
@@ -164,28 +163,34 @@ impl InteractiveBehavior for CliBehavior {
 
         match ev.code {
             KeyCode::Backspace => {
-                out.queue(cursor::MoveLeft(1)).unwrap();
-                out.queue(Clear(ClearType::FromCursorDown)).unwrap();
-                out.flush().ok();
+                if self.buffer.len() > 0 {
+                    out.queue(cursor::MoveLeft(1)).unwrap();
+                    out.queue(Clear(ClearType::FromCursorDown)).unwrap();
+                    out.flush().ok();
 
-                self.buffer.remove(self.buffer.len() - self.cursor as usize - 1);
-                out.write_all(
-                    self.buffer.get(self.buffer.len() - self.cursor as usize..self.buffer.len())
-                        .unwrap().as_bytes()
-                ).unwrap();
-                out.flush().unwrap();
+                    self.buffer.remove(self.buffer.len() - self.cursor as usize - 1);
+                    out.write_all(
+                        self.buffer.get(self.buffer.len() - self.cursor as usize..self.buffer.len())
+                            .unwrap().as_bytes()
+                    ).unwrap();
+                    out.flush().unwrap();
 
-                if self.cursor > 0 {
-                    out.execute(cursor::MoveLeft(self.cursor)).unwrap();
+                    if self.cursor > 0 {
+                        out.execute(cursor::MoveLeft(self.cursor)).unwrap();
+                    }
                 }
             }
             KeyCode::Left => {
-                out.execute(cursor::MoveLeft(1)).unwrap();
-                self.cursor += 1;
+                if self.cursor < self.buffer.len() as u16 {
+                    out.execute(cursor::MoveLeft(1)).unwrap();
+                    self.cursor += 1;
+                }
             }
             KeyCode::Right => {
-                out.execute(cursor::MoveRight(1)).unwrap();
-                self.cursor = (self.cursor - 1).max(0);
+                if self.cursor > 0 {
+                    out.execute(cursor::MoveRight(1)).unwrap();
+                    self.cursor -= 1;
+                }
             }
             KeyCode::Enter => {
                 self.execute = true;

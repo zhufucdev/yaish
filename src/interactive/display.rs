@@ -70,7 +70,7 @@ impl Display {
     pub fn main_loop(&mut self) {
         loop {
             terminal::enable_raw_mode().unwrap();
-            self.stdout.write("🤔 ".as_bytes()).unwrap();
+            self.stdout.write(behavior::STARTER.as_bytes()).unwrap();
             self.stdout.flush().unwrap();
 
             self.inline_loop();
