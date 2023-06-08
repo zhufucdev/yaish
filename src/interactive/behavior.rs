@@ -157,6 +157,8 @@ impl InteractiveBehavior for CliBehavior {
             _ => {
                 if self.is_winding {
                     self.is_winding = false;
+                    self.history.reset();
+
                     self.buffer = self.history.present().or(Some(&Command::empty())).unwrap().to_string();
                     CliBehavior::swipe(self.buffer.as_str(), out);
                     self.cursor = 0;
@@ -257,6 +259,7 @@ impl InteractiveBehavior for CliBehavior {
     fn reset(&mut self) {
         self.execute = false;
         self.is_winding = false;
+        self.history.reset();
         self.buffer = String::new();
     }
 }

@@ -42,4 +42,8 @@ impl History {
     pub(crate) fn is_empty(&self) -> bool {
         self.commands.is_empty()
     }
+
+    pub(crate) fn reset(&mut self) {
+        self.index = self.commands.len() as i32;
+    }
 }
