@@ -224,6 +224,7 @@ impl InteractiveBehavior for CliBehavior {
                 }
             }
             self.is_winding = false;
+            self.history.reset();
         }
 
         out.execute(Clear(ClearType::FromCursorDown)).unwrap();
