@@ -8,7 +8,8 @@ mod interactive;
 fn main() {
     let term = Term::stdout();
     if !term.is_term() {
-        println!("Liar! This is not a terminal!")
+        println!("Liar! This is not a terminal!");
+        return;
     }
 
     let mut display = Display::from(term);
