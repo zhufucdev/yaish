@@ -1,5 +1,8 @@
-use std::io::Write;
-use console::{Key, Term};
+use std::io::{Stdout, Write};
+use crossterm::{cursor, QueueableCommand};
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::ExecutableCommand;
+use crossterm::terminal::{Clear, ClearType};
 use crate::config::behavior;
 use crate::config::completion::{Command, Completion, Suggestion};
 use crate::interactive::display::Display;
@@ -10,8 +13,8 @@ pub enum Focus {
 }
 
 pub trait InteractiveBehavior {
-    fn on_key_pressed(&mut self, key: Key, term: &mut Term);
-    fn on_char_received(&mut self, c: char, term: &mut Term);
+    fn on_key_pressed(&mut self, ev: KeyEvent, out: &mut Stdout);
+    fn on_char_received(&mut self, c: char, ev: KeyEvent, out: &mut Stdout);
     fn should_execute(&self) -> bool;
     fn execute(&self);
 }
@@ -23,9 +26,9 @@ pub struct AutoCompletionBehavior {
 }
 
 impl AutoCompletionBehavior {
-    pub fn new(suggestions: Vec<Suggestion>, term: Term) -> AutoCompletionBehavior {
+    pub fn new(suggestions: Vec<Suggestion>, width: u16) -> AutoCompletionBehavior {
         let columns: u16 = suggestions.len().min(4) as u16;
-        let width = term.size().0 / columns;
+        let width = width / columns;
 
         return AutoCompletionBehavior {
             columns,
@@ -36,9 +39,9 @@ impl AutoCompletionBehavior {
 }
 
 impl InteractiveBehavior for AutoCompletionBehavior {
-    fn on_key_pressed(&mut self, key: Key, term: &mut Term) {}
+    fn on_key_pressed(&mut self, ev: KeyEvent, out: &mut Stdout) {}
 
-    fn on_char_received(&mut self, c: char, term: &mut Term) {}
+    fn on_char_received(&mut self, c: char, ev: KeyEvent, out: &mut Stdout) {}
 
     fn should_execute(&self) -> bool {
         return false;
@@ -49,7 +52,7 @@ impl InteractiveBehavior for AutoCompletionBehavior {
 pub struct CliBehavior {
     buffer: String,
     execute: bool,
-    cursor: usize,
+    cursor: u16,
 }
 
 impl CliBehavior {
@@ -99,42 +102,57 @@ impl CliBehavior {
 }
 
 impl InteractiveBehavior for CliBehavior {
-    fn on_key_pressed(&mut self, key: Key, term: &mut Term) {
-        match key {
-            Key::Backspace => {
-                term.clear_chars(1).unwrap();
-                self.buffer.remove(self.buffer.len() - self.cursor - 1);
-                term.write_all(
-                    self.buffer.get(self.buffer.len() - self.cursor..self.buffer.len())
+    fn on_key_pressed(&mut self, ev: KeyEvent, out: &mut Stdout) {
+        match ev.code {
+            KeyCode::Backspace => {
+                out.queue(cursor::MoveLeft(1)).unwrap();
+                out.queue(Clear(ClearType::FromCursorDown)).unwrap();
+                out.flush().unwrap();
+
+                self.buffer.remove(self.buffer.len() - self.cursor as usize - 1);
+                out.write_all(
+                    self.buffer.get(self.buffer.len() - self.cursor as usize..self.buffer.len())
                         .unwrap().as_bytes()
                 ).unwrap();
-                term.move_cursor_left(self.cursor).unwrap();
+                out.flush().unwrap();
+
+                if self.cursor > 0 {
+                    out.execute(cursor::MoveLeft(self.cursor)).unwrap();
+                }
             }
-            Key::ArrowLeft => {
-                term.move_cursor_left(1).unwrap();
+            KeyCode::Left => {
+                out.execute(cursor::MoveLeft(1)).unwrap();
                 self.cursor += 1;
             }
-            Key::ArrowRight => {
-                term.move_cursor_right(1).unwrap();
+            KeyCode::Right => {
+                out.execute(cursor::MoveRight(1)).unwrap();
                 self.cursor = (self.cursor - 1).max(0);
             }
-            Key::Enter => {
+            KeyCode::Enter => {
                 self.execute = true;
             }
             _ => {}
         }
     }
 
-    fn on_char_received(&mut self, c: char, term: &mut Term) {
-        term.clear_chars(0).unwrap();
-        self.buffer.insert(self.buffer.len() - self.cursor, c);
+    fn on_char_received(&mut self, c: char, ev: KeyEvent, out: &mut Stdout) {
+        if ev.modifiers == KeyModifiers::CONTROL && c == 'd' {
+            Display::quit();
+        }
 
-        term.write(
-            self.buffer.get(self.buffer.len() - 1 - self.cursor..self.buffer.len()).unwrap().as_bytes()
+
+        out.execute(Clear(ClearType::FromCursorDown)).unwrap();
+        self.buffer.insert(self.buffer.len() - self.cursor as usize, c);
+
+        out.write_all(
+            self.buffer.get(self.buffer.len() - 1 - self.cursor as usize..self.buffer.len())
+                .unwrap().as_bytes()
         ).unwrap();
-        term.flush().unwrap();
+        out.flush().unwrap();
 
-        term.move_cursor_left(self.cursor).unwrap();
+        if self.cursor > 0 {
+            out.execute(cursor::MoveLeft(self.cursor)).unwrap();
+        }
     }
 
     fn should_execute(&self) -> bool {
@@ -145,7 +163,6 @@ impl InteractiveBehavior for CliBehavior {
         let args = self.parse_arguments();
         let command = Command::from(args);
 
-        println!();
         println!("Command: {}", command.get_command());
         println!("Args: {:?}", command.get_arguments());
     }

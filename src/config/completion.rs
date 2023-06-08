@@ -1,4 +1,4 @@
-use console::Style;
+use crossterm::style::Stylize;
 
 pub struct Command {
     commands: Vec<String>,
@@ -33,8 +33,7 @@ impl Command {
 }
 
 pub struct Suggestion {
-    pub tooltip: String,
-    pub style: Style
+    pub tooltip: String
 }
 
 pub struct Completion {
